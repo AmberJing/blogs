@@ -1,0 +1,247 @@
+@[TOC](目录)
+# 1.被忽视的内存管理
+JavaScript不像C、C++等语言——程序员必须通过调用内存管理接口，比如 malloc()和free()，自己手动分配和释放内存——JS引擎会”自动“管理内存。也就是说，JS在创建变量（对象，字符串等）时分配内存，并且在执行完毕，将不再使用的变量的内存空间释放。这种自动化的管理方式，使得JS入门简单、开发快，但同时也让很多人忽视了对JS内存的管理与优化。
+
+# 2.内存空间划分
+内存空间就像是我们的房间，存储在内存中的变量和数据就是我们日常使用的物品，房间合理规划，物品分类收纳，才能方便以后使用。同样的，JS内存划分为栈（stack）和堆（heap），分别用于存储JS两种类型的数据——基本类型和引用类型。
+
+>事实上，JS并没有对内存进行严格意义上的划分，我们简单的认为JS的所有数据都是在堆中进行操作。但是JS的某些场景，仍然需要基于堆栈结构的思想去处理，比如JavaScript的执行上下文（执行上下文在逻辑上实现了堆栈，关于这一点我会在下一篇JS运行机制文章中介绍），所以说理解堆栈结构的原理与特点十分重要。
+
+## 2.1栈与基本类型数据
+栈的结构很像桶装薯片，入栈、出栈操作都是在栈顶进行，它的特点就是后进先出(LIFO)，栈一般用于保存固定大小的值。JS的5种基本类型数据：Number、String、Boolean、Null和Undefined就在栈中分配空间。
+
+基本类型的值指的是简单的数据段，通过访问保存值的变量直接可以操作值，所以说基本类型是按值访问的。
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/2019011916323161.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3NpbmF0XzIzNTE1ODE3,size_16,color_FFFFFF,t_70)
+## 2.2堆与引用类型数据
+堆是没有结构的，用于为一些数据大小不确定的复杂类型（引用类型）数据分配空间，例如对象、数组。
+
+引用类型值指的是由多个值构成的对象。JS不允许直接访问堆内存中的位置，因此我们不能直接操作对象的堆内存空间。JS提供了一种间接的方式，将对象在堆中的引用（地址）保存到变量中，使用变量时，就间接地通过引用（地址）访问对象属性。因此，引用类型的值都是按引用访问的。
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190119163326986.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3NpbmF0XzIzNTE1ODE3,size_16,color_FFFFFF,t_70)
+# 3.内存生命周期
+内存的生命周期分为三个阶段：
+ 1. **分配内存**（allocate memory）：在内存中开辟空间，存储变量和数据。在JS中，当我们声明变量、函数、对象的时候，系统会自动为它们分配内存。
+ 2. **使用内存**（use memory）：使用之前分配过的内存。JS在代码执行时，需要对（分配过内存空间的）数据和变量进行计算，也就是对内存进行读写操作。
+ 3. **释放内存**（release memory）：释放不再使用的内存，变量和数据也随之销毁。代码执行结束，JS的垃圾收集机制，会自动销毁不再使用的变量和数据，释放内存。
+
+为了我们先举个简单的例子来解释一下内存的生命周期：
+```javascript
+var num = 1024;   // 在栈中分配空间给数值变量
+console.log(num + 10);  // 使用变量，会对读写内存
+num = null; // 使用完毕，释放内存空间
+```
+下面详细讲解一下这三个过程，着重释放内存的过程。
+## 2.1分配内存
+当我们声明变量、函数，并初始化时（未初始化，默认值undefined），JS引擎在内存中自动为它们开辟空间。
+```javascript
+var num = 1024; // 在栈中分配空间给变量，赋值1024
+var str = 'this is string'; // 在栈中分配空间给变量，赋值'this is string'
+var boo = true; // 在栈中分配空间给变量，赋值true
+var a = null;  // 在栈中分配空间给变量，赋值null
+var b;  // 在栈中分配空间给变量，赋值undefined
+var arr = [11, 22, 33];  // 在栈中分配空间给变量，在堆中分配空间存储[11, 22, 33]，并将数据在堆中的地址赋值给变量
+var person = { name: 'Json', age: 26 }; // 在栈中分配空间给变量，在堆中分配空间存储{ name: 'Json', age: 26 }，并将数据在堆中的地址赋值给变量
+```
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190119223012494.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3NpbmF0XzIzNTE1ODE3,size_16,color_FFFFFF,t_70)
+## 2.2使用内存
+使用内存，从代码的角度看，就是对分配了内存的变量进行的一系列的操作（计算，赋值等）；从内存的角度看，就是读取和写入内存。下面是一个简单的例子：
+```javascript
+var num = 1024; 
+var sum = num + 10; // 使用值的过程（从num中读取1024，进行+10计算后，将结果写入sum）
+console.log( sum ); // 使用值的过程（从内存读取sum的值）
+```
+在真正使用内存时，会出现更复杂的情况，比如函数作用域，闭包，对象创建，原型链等，这些会在后续文章中讲解。下面我们先理解一个常用的操作——赋值变量值。
+
+### 2.2.1复制变量值
+在内存空间划分小节，我们介绍了基本类型数据和引用类型数据，他们除了在保存时有所不同，在使用时也会有差异：在从一个变量向另一个变量复制值的时候，基本类型复制的是值，而引用类型复制的是引用地址。
+1. 复制基本类型的值
+基本类型的变量间复制值时，会创建一个值的副本，然后把这个副本值放到为新变量分配的位置上，两个变量的操作不会互相影响。如下，
+```javascript
+var num1 = 10;
+var num2 = num1;
+num2 = 30;
+```
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190119222106829.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3NpbmF0XzIzNTE1ODE3,size_16,color_FFFFFF,t_70)
+
+2. 复制引用类型的值
+复制引用类型的值，同样也会复制一个值的副本到新的变量中。只是这个值的副本是一个指针，而这个指针指向的堆内存地址并没有变，也就是说两个变量实际上引用的是同一个对象。因此，改变其中一个变量，就会影响到另一个。
+```javascript
+var person = { name: 'Json', age: 20 }
+var p1 = person;
+p1.age = 15;
+```
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190119224108600.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3NpbmF0XzIzNTE1ODE3,size_16,color_FFFFFF,t_70)
+
+3. 应用——函数参数传递
+JavaScript函数参数的传递，其实就是复制变量值的应用。向参数传递基本类型的值，被传递的值会复制给一个局部变量；向参数传递引用类型的值时，会把这个值在内存中的地址复制给一个局部变量，因此这个局部变量的变化会反应在函数的外部。
+（1）基本类型传参:
+```javascript
+function add(num) {
+	num += 20;
+	console.log(num); // 30
+	return num;
+}
+var test = 10;
+add(test);
+console.log(test); // 10
+```
+其实add()函数调用时，传参的过程大致如下：
+```javascript
+var test = 10;
+add(test);  
+/* add(test) => {
+	var num;
+	num = test; // 将实参复制给形参
+	num += 20;
+	console.log(num); // 30
+	return num;
+} */
+console.log(test); // 10
+```
+（1）引用类型传参:
+```javascript
+function setName(obj) {
+	obj.name = 'Nick';
+}
+var person = new Object();
+setName(person );
+console.log(person.name); // 'Nick'
+```
+由于person和obj指向同一个对象，当函数内部obj为对象添加属性时，函数外部的person访问的对象也是被修改之后的。
+
+##  2.3释放内存
+当代码执行完毕，变量不再被使用时，就要将这些数据销毁，将内存释放以供将来使用。比如，C、C++就提供了调用接口，开发人员通过free()来释放之前分配的内存。在JS中，程序员不用手动释放内存，因为JS具有垃圾收集机制（Garbage Collect），会自动回收不再使用的数据。
+
+那么问题来了，JavaScript的自动垃圾收集机制（Garbage Collect）的原理是什么呢？他是如何判断数据不在有用呢？什么时候触发呢？其实很简单，垃圾收集器会追踪所有的变量，对那些不在继续使用的值打上标记，然后按照固定的时间间隔，周期性地销毁被标记的变量，释放占用的内存。
+
+例如，局部变量只在函数的执行过程中存在，当函数执行完，这些局部变量就没有存在的必要（闭包除外），这时，垃圾收集器就会给这些变量打标记，在下一周期性地执行中被垃圾收集器释放掉。
+
+接下来要介绍垃圾回收的两种算法：标记清除法和引用计数法。
+### 2.3.1引用计数
+ - **算法名称：** 引用计数（reference counting）
+ - **算法介绍：** 引用计数策略是最早的垃圾回收算法，现在不常见。
+ - **基本思路：** 跟踪记录每个值被引用的次数。
+ ```
+       1.当声明了一个变量，并将一个引用类型的值赋给该变量时，这个值的引用次数为1。
+       2.如果同一个值又被赋给另一个变量，计数+1；
+       3.反之，如果包含对这个值引用的变量取得了另外一个值，计数-1；
+       4.当引用计数为0时，说明没有办法使用到这个值，在垃圾收集器下次再运行时，就释放引用次数为0的值所占用的空间。
+ ```
+ - **限制（缺陷）：** 循环引用
+  在下面的例子中，两个对象被创建，并互相引用，形成了一个循环。理论上，调用结束后，离开函数作用域，它们已经没有用了，可以被回收了。然而，引用计数算法会标记它们的引用次数都为2，所以它们不会被回收。
+  ```javascript
+function cycle() {
+    var objA = {};
+    var objB = {};
+    objA.someObj = objB;
+    objB.anotherObj = objA; 
+}
+cycle();
+ ```
+ - **解决办法**： 在不使用时，手工断开连接(对于不使用的引用设置为null）。
+  ```javascript
+ objA.someObj  = null;
+ objB.anotherObj  = null;
+```
+将变量设置为null，意味着切断变量与它此前引用的值之间的连接。当垃圾回收下次运行时会进行清除工作。
+
+### 2.3.2.标记清除
+ - **算法名称：** 标记清除（mark and sweep）
+ - **算法介绍：** 标记清除方式是最常用的垃圾回收算法。
+ - **基本思路：** 当变量进入环境时（例如，在函数中声明一个变量），就将这个变量标记为“进入环境”。从逻辑上讲，永远不能释放进入环境的变量所占的内存，因为只要执行流进入相应的环境，就可能用到它们。而当变量离开环境时，就将其标记为“离开环境”。 （标记的方式与很多种，如何标记不重要，重要的是这种策略的思想）
+ ```
+       1.标记：垃圾回收集器每隔一段时间扫描一次内存，在扫描的过程中先把内存的所有变量加上“要回收的”标记，然后，去掉运行环境中的变量以及被该环境的变量引用的变量(也就是不回收)
+       2.清除：在下一次垃圾收集器运行时，销毁那些带标记的值，并回收所占用的空间。
+ ```
+ - **好处（优点）：** 循环引用不再是问题，因为“无法访问的对象”包含了“没有引用的对象”这个概念，反之未必成立。
+ - **限制（缺陷）：** 那些无法从根对象查询到的对象都将被清除。尽管这是一个限制，但实践中我们很少会碰到类似的情况。
+
+# 4.内存泄露
+## 4.1什么是内存泄露？
+内存泄漏（memory leak）是指程序不再使用的内存，由于某些原因，无法被释放到内存中。虽然JavaScript有自动垃圾收集，但是如果我们的代码写法不当，会让变量一直处于“进入环境”的状态，无法被回收，造成内存泄漏。
+
+## 4.2常见的四种内存泄露
+引用计数法的循环引用也是内存泄漏的一个实例，只是这种算法已经不常用了。下面介绍几种常见的内存泄漏。
+### 4.2.1全局变量
+ - 初始化一个未声明的变量，会在全局对象（在浏览器中，代表window）添加一个属性。
+  ```javascript
+function foo() {       等同于：    function foo() {
+    data = 1236;                        window.data = 1236;
+}                                 }
+```
+
+
+产生的全局变量不会被释放，随着你忘记声明的越多，这些会在内存中堆积，带来很多危害。
+
+ - 另外一种可能产生意外的全局变量的方式是：
+  ```javascript
+function foo() {
+    this.var1 = "potential accidental global";
+}
+// Foo called on its own, this points to the global object (window) 
+// rather than being undefined.
+foo();
+```
+>为了阻止这种错误发生，在你的Javascript文件最前面添加'use strict;'。严格模式会阻止意外的全局声明。
+
+除了意外的声明全局变量，我们显式声明的全局变量也会造成大量的内存使用，是能在页面或浏览器关闭时才会释放，所以应该尽量减少全局变量的声明和使用。如果你必须使用全局变量来存储大量数据，请确保在使用之后将其分配为null或重新分配。
+
+### 4.2.2被遗忘的计时器和回调
+setInterval 在 JavaScript 中是经常被使用的。
+
+大多数提供观察者和其他模式的回调函数库都会在调用自己的实例变得无法访问之后对其任何引用也设置为不可访问。 但是在setInterval的情况下，这样的代码很常见：
+```javascript
+var serverData = loadData();
+setInterval(function() {
+    var renderer = document.getElementById('renderer');
+    if(renderer) {
+        renderer.innerHTML = JSON.stringify(serverData);
+    }
+}, 5000); //This will be executed every ~5 seconds.
+```
+这个例子说明了计时器可能发生的情况：计时器可能会产生再也不被需要的节点或者数据的引用。
+
+renderer所代表的对象在未来可能被移除，让部分interval 处理器中代码变得不再被需要。然而，这个处理器不能够被收集因为interval依然活跃的（这个interval需要被停止从而表面这种情况）。如果这个interval处理器不能够被收集，那么它的依赖也不能够被收集。这意味这存储大量数据的severData也不能够被收集。
+
+在这种观察者的情况下，做出准确的调用从而在不需要它们的时候立即将其移除是非常重要的（或者相关的对象被置为不可访问的）。
+
+### 4.2.3闭包
+JavaScript 有一个重要的知识点——闭包：一个可以访问外部（封闭）函数变量的内部函数。 
+```javascript
+ var leaks = (function(){  
+    var leak = 'xxxxxx';// 被闭包所引用，不会被回收
+    return function(){
+        console.log(leak);
+    }
+})()
+```
+
+闭包可以维持函数内局部变量，使其得不到释放，具体原理后面章节会介绍。
+### 4.2.4DOM 之外的引用
+有时将DOM节点存储在数据结构中可能是有用的。 假设要快速更新表中的几行内容。 存储对字典或数组中每个DOM行的引用可能是有意义的。 当发生这种情况时，会保留对同一DOM元素的两个引用：一个在DOM树中，另一个在字典中。 如果将来某个时候您决定删除这些行，则需要使两个引用置为不可访问。
+```javascript
+var elements = {
+    button: document.getElementById('button'),
+    image: document.getElementById('image')
+};
+
+function doStuff() {
+    image.src = 'http://example.com/image_name.png';
+}
+
+function removeImage() {
+    // The image is a direct child of the body element.
+    document.body.removeChild(document.getElementById('image'));
+
+    // At this point, we still have a reference to #button in the
+    //global elements object. In other words, the button element is
+    //still in memory and cannot be collected by the GC.
+}
+```
+
+
+# 5.参考链接
+https://blog.csdn.net/pingfan592/article/details/55189622/
+https://blog.csdn.net/tangxiaolang101/article/details/78113871
+https://www.cnblogs.com/liangyin/p/7764232.html
+https://www.imooc.com/article/13489
